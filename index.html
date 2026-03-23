@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fortics</title>
+  
+  <!-- Fontes Oficiais -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;600;700;800&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sora: ['"Sora"', 'sans-serif'],
+            space: ['"Space Grotesk"', 'sans-serif'],
+            mono: ['"Roboto Mono"', 'monospace'],
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.4s ease-out forwards',
+          },
+          keyframes: {
+            fadeIn: {
+              'from': { opacity: '0', transform: 'translateY(10px)' },
+              'to': { opacity: '1', transform: 'translateY(0)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    ::selection { background-color: #0066FF; color: white; }
+    html { scroll-behavior: smooth; }
+    body { background-color: #FAFAFA; color: #1E293B; font-family: 'Sora', sans-serif; }
+    
+    /* Scrollbar Light Theme */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 10px; border: 2px solid #FAFAFA; }
+    ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+    
+    /* Range Slider */
+    input[type=range] { -webkit-appearance: none; background: #E2E8F0; height: 6px; border-radius: 3px; width: 100%; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #0066FF; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 6px rgba(0,102,255,0.4); transition: transform 0.1s; }
+    input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    
+    /* Toast de Cópia */
+    #copy-toast { transition: opacity 0.2s, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events: none; }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen selection:bg-[#0066FF] selection:text-white">
+
+  <!-- ================= Toast Feedback ================= -->
+  <div id="copy-toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 translate-y-4 bg-slate-900 text-white font-bold text-sm px-6 py-3 rounded-full shadow-2xl opacity-0 z-[100] flex items-center gap-2">
+    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i> <span id="toast-text">Copiado!</span>
+  </div>
+
+  <!-- ================= Modal de Exportação ================= -->
+  <div id="download-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeModal()"></div>
+    
+    <div class="bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl relative z-10 flex flex-col transform scale-95 transition-transform duration-200" id="modal-content">
+      
+      <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl">
+        <h3 class="text-slate-900 font-bold text-lg flex items-center gap-2">
+          Exportar Logotipo
+        </h3>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-900 transition-colors p-2 hover:bg-slate-200 rounded-full">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="modal-preview-container" class="h-48 w-full flex items-center justify-center p-6 relative border-b border-slate-100">
+        <img id="modal-preview-img" src="" alt="Preview" class="max-w-full max-h-full drop-shadow-md relative z-10" />
+      </div>
+
+      <div class="p-6 space-y-6">
+         <button onclick="executeDownload('svg')" class="w-full flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 transition-colors group">
+           <div class="flex items-center gap-3">
+             <div class="bg-[#0066FF]/10 text-[#0066FF] p-2 rounded-lg group-hover:bg-[#0066FF] group-hover:text-white transition-colors">
+               <i data-lucide="vector" class="w-5 h-5"></i>
+             </div>
+             <div class="text-left">
+               <span class="block text-slate-900 font-bold text-sm">Vetor (SVG)</span>
+               <span class="block text-slate-500 text-xs">Formato original para design.</span>
+             </div>
+           </div>
+           <i data-lucide="download" class="w-5 h-5 text-slate-400 group-hover:text-[#0066FF] transition-colors"></i>
+         </button>
+
+         <div class="space-y-4">
+           <div class="flex justify-between items-center">
+             <span class="text-slate-900 font-bold text-sm">Imagem (PNG)</span>
+             <span id="res-label" class="font-mono text-xs text-[#0066FF] font-bold bg-[#0066FF]/10 px-2 py-1 rounded">Largura: 2048px</span>
+           </div>
+           
+           <input type="range" id="res-slider" min="256" max="4096" step="256" value="2048" oninput="updateResLabel(this.value)">
+           <div class="flex justify-between text-[10px] font-mono text-slate-500">
+             <span>256px</span>
+             <span>4096px (4K)</span>
+           </div>
+
+           <button onclick="executeDownload('png')" id="btn-download-png" class="w-full flex items-center justify-center gap-2 py-4 bg-[#0066FF] hover:bg-[#0052CC] text-white rounded-xl font-bold transition-colors shadow-[0_4px_14px_rgba(0,102,255,0.3)] hover:shadow-[0_6px_20px_rgba(0,102,255,0.4)]">
+             Baixar PNG Rasterizado <i data-lucide="download" class="w-4 h-4"></i>
+           </button>
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Header (Top Navigation) ================= -->
+  <header class="w-full bg-white/80 backdrop-blur-xl border-b border-slate-200 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      
+      <!-- Logo & Branding -->
+      <div class="flex items-center gap-4">
+        <!-- Atualizado com a URL raw do GitHub -->
+        <img src="https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE%20PREFERENCIAL%20FUNDO%20AZUL%20BRANCO.svg" alt="Fortics" class="h-8 w-auto object-contain" />
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center gap-1 sm:gap-2 bg-slate-100 p-1.5 rounded-full border border-slate-200">
+        <a href="#brand" id="nav-brand" class="nav-link px-4 sm:px-6 py-2 rounded-full text-xs font-bold transition-all bg-white text-[#0066FF] shadow-sm">
+          <span class="hidden sm:inline">Cores Oficiais</span>
+          <span class="sm:hidden">Cores</span>
+        </a>
+        <a href="#typography" id="nav-typography" class="nav-link px-4 sm:px-6 py-2 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-900">
+          Tipografia
+        </a>
+        <a style="display: none!important;"href="#logos" id="nav-logos" class="nav-link px-4 sm:px-6 py-2 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-900">
+          Logotipos
+        </a>
+      </nav>
+
+    </div>
+  </header>
+
+  <!-- ================= Main Content Area ================= -->
+  <main class="flex-1 w-full bg-[radial-gradient(ellipse_at_top_right,rgba(0,102,255,0.03),transparent)] pb-24">
+    <div class="max-w-7xl mx-auto px-6 py-12 md:py-16 space-y-24">
+
+      <!-- SECÇÃO 1: CORES -->
+      <section id="brand" class="space-y-16 scroll-mt-28">
+        <header class="max-w-3xl">
+           <h1 class="text-slate-900 font-extrabold text-4xl md:text-5xl tracking-tight mb-4 font-space">Cores da Marca</h1>
+           <p class="text-slate-500 text-lg leading-relaxed">
+             A fundação visual da Fortics. Clique sobre os valores <strong class="text-slate-700">HEX, CMYK ou Pantone</strong> para copiá-los diretamente para a sua área de transferência.
+           </p>
+        </header>
+
+        <!-- Grid de Cores Injetado via JS -->
+        <div id="colors-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"></div>
+
+        <div class="pt-12 border-t border-slate-200">
+           <header class="max-w-3xl mb-8">
+             <h2 class="text-slate-900 font-bold text-3xl mb-4 font-space">Escala de Cinzas & Neutros</h2>
+             <p class="text-slate-500 text-base leading-relaxed">Utilizados para estruturar interfaces, tipografia secundária e criar profundidade sem competir com as cores primárias.</p>
+           </header>
+           <div class="bg-white border border-slate-200 rounded-[2rem] p-4 md:p-8 shadow-sm">
+             <div id="neutrals-container" class="flex flex-col divide-y divide-slate-100"></div>
+           </div>
+        </div>
+      </section>
+
+      <!-- SECÇÃO 2: TIPOGRAFIA -->
+      <section id="typography" class="space-y-16 scroll-mt-28 pt-8 md:pt-12 border-t border-slate-200">
+        <header class="max-w-3xl">
+           <h1 class="text-slate-900 font-extrabold text-4xl md:text-5xl tracking-tight mb-4 font-space">Tipografia Oficial</h1>
+           <p class="text-slate-500 text-lg leading-relaxed">
+             A <strong>Sora</strong> é a voz oficial da Fortics. Geometria, modernidade e legibilidade excecional, otimizada para interfaces digitais e materiais de marketing.
+           </p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <div class="lg:col-span-2 bg-white rounded-[2rem] p-8 md:p-10 border border-slate-200 shadow-sm">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-10">Visualização de Pesos</h3>
+            
+            <div class="space-y-8 text-slate-900 font-sora">
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 border-b border-slate-100 pb-8">
+                <div class="w-32 text-slate-400 font-mono text-xs">Light (300)</div>
+                <div class="text-2xl md:text-3xl font-light tracking-tight truncate">O Motor de Previsibilidade</div>
+              </div>
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 border-b border-slate-100 pb-8">
+                <div class="w-32 text-slate-400 font-mono text-xs">Regular (400)</div>
+                <div class="text-2xl md:text-3xl font-normal tracking-tight truncate">O Motor de Previsibilidade</div>
+              </div>
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 border-b border-slate-100 pb-8">
+                <div class="w-32 text-slate-400 font-mono text-xs">Medium (500)</div>
+                <div class="text-2xl md:text-3xl font-medium tracking-tight truncate">O Motor de Previsibilidade</div>
+              </div>
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 border-b border-slate-100 pb-8">
+                <div class="w-32 text-[#0066FF] font-mono text-xs font-bold">SemiBold (600)</div>
+                <div class="text-2xl md:text-3xl font-semibold tracking-tight text-[#0066FF] truncate">O Motor de Previsibilidade</div>
+              </div>
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8 border-b border-slate-100 pb-8">
+                <div class="w-32 text-[#0066FF] font-mono text-xs font-bold">Bold (700)</div>
+                <div class="text-2xl md:text-3xl font-bold tracking-tight truncate">O Motor de Previsibilidade</div>
+              </div>
+              <div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-8">
+                <div class="w-32 text-[#0066FF] font-mono text-xs font-bold">ExtraBold (800)</div>
+                <div class="text-2xl md:text-3xl font-extrabold tracking-tighter truncate">O Motor de Previsibilidade</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div class="w-16 h-16 bg-[#0066FF]/10 text-[#0066FF] rounded-full flex items-center justify-center mb-6">
+                <i data-lucide="download" class="w-8 h-8"></i>
+              </div>
+              <h4 class="text-slate-900 font-bold text-xl mb-3">Download da Família</h4>
+              <p class="text-slate-500 text-sm mb-8 leading-relaxed">Aceda ao repositório oficial do Google Fonts para obter os ficheiros .ttf para Figma e Adobe.</p>
+              <a href="https://fonts.google.com/specimen/Sora" target="_blank" class="w-full py-4 bg-[#0066FF] text-white font-bold rounded-xl hover:bg-[#0052CC] transition-colors text-sm shadow-md flex items-center justify-center">
+                Abrir Google Fonts
+              </a>
+            </div>
+
+            <div class="bg-white rounded-[2rem] overflow-hidden border border-slate-200 shadow-sm relative group">
+              <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">Implementação Web (Head)</span>
+                <button onclick="copyToClipboard('<link rel=\'preconnect\' href=\'https://fonts.googleapis.com\'>\n<link rel=\'preconnect\' href=\'https://fonts.gstatic.com\' crossorigin>\n<link href=\'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap\' rel=\'stylesheet\'>')" class="text-slate-400 hover:text-[#0066FF] transition-colors p-1">
+                  <i data-lucide="copy" class="w-4 h-4"></i>
+                </button>
+              </div>
+              <pre class="p-6 text-[11px] text-slate-500 font-mono overflow-x-auto leading-loose">
+&lt;link rel="preconnect" href="https://fonts.googleapis.com"&gt;
+&lt;link rel="preconnect" href="https://fonts.gstatic.com" crossorigin&gt;
+&lt;link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"&gt;</pre>
+            </div>
+            
+            <div class="bg-white rounded-[2rem] overflow-hidden border border-slate-200 shadow-sm relative">
+              <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">Regra CSS</span>
+                <button onclick="copyToClipboard('font-family: \'Sora\', sans-serif;')" class="text-slate-400 hover:text-[#0066FF] transition-colors p-1">
+                  <i data-lucide="copy" class="w-4 h-4"></i>
+                </button>
+              </div>
+              <pre class="p-6 text-sm text-[#0066FF] font-mono overflow-x-auto">font-family: 'Sora', sans-serif;</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECÇÃO 3: LOGÓTIPOS -->
+     <!-- <section id="logos" class="space-y-12 scroll-mt-28 pt-8 md:pt-12 border-t border-slate-200">
+        <header class="max-w-3xl">
+           <h1 class="text-slate-900 font-extrabold text-4xl md:text-5xl tracking-tight mb-4 font-space">Repositório de Marcas</h1>
+           <p class="text-slate-500 text-lg leading-relaxed">
+             As assinaturas visuais da Fortics organizadas pelas regras oficiais de aplicação e contraste. <strong>Clique num logótipo para exportar em PNG 4K ou SVG vetorial.</strong>
+           </p>
+        </header>
+
+
+        <div id="logos-container" class="space-y-16"></div>
+      </section>-->
+
+    </div>
+  </main>
+
+  <!-- LÓGICA JAVASCRIPT -->
+  <script>
+    // === DADOS DAS CORES ===
+    const BRAND_COLORS = [
+      { name: 'Esmeralda', meaning: 'Sucesso matemático.', hex: '#20D78A', cmyk: '65, 0, 50, 0', pantone: '339 C', textDark: true, shades: ['#A7F3D0', '#6EE7B7', '#20D78A', '#059669', '#064E3B'] },
+      { name: 'Núcleo Azul', meaning: 'Confiança e tecnologia.', hex: '#0066FF', cmyk: '90, 60, 0, 0', pantone: '2728 C', textDark: false, shades: ['#99C2FF', '#4D94FF', '#0066FF', '#004DE6', '#002999'] },
+      { name: 'Violeta', meaning: 'Inovação constante.', hex: '#8B5CF6', cmyk: '55, 65, 0, 0', pantone: '2655 C', textDark: false, shades: ['#DDD6FE', '#A78BFA', '#8B5CF6', '#6D28D9', '#4C1D95'] },
+      { name: 'Marinho', meaning: 'Robustez e seriedade.', hex: '#0B1121', cmyk: '90, 80, 50, 85', pantone: '532 C', textDark: false, shades: ['#334155', '#1E293B', '#0B1121', '#060913', '#020308'] }
+    ];
+
+    const NEUTRALS = [
+      { name: 'Branco Puro', hex: '#FFFFFF', cmyk: '0, 0, 0, 0', desc: 'Fundos e textos primários.' },
+      { name: 'Cinza 100', hex: '#F1F5F9', cmyk: '2, 1, 1, 0', desc: 'Fundos de superfície.' },
+      { name: 'Cinza 300', hex: '#CBD5E1', cmyk: '14, 9, 8, 0', desc: 'Bordas de contentores.' },
+      { name: 'Cinza 500', hex: '#64748B', cmyk: '45, 30, 20, 20', desc: 'Textos de suporte.' },
+      { name: 'Cinza 700', hex: '#334155', cmyk: '65, 45, 30, 50', desc: 'Textos secundários.' },
+      { name: 'Cinza 900', hex: '#0F172A', cmyk: '80, 60, 40, 70', desc: 'Textos primários.' },
+    ];
+
+    // === URL LOGOS ATUALIZADAS (raw.githubusercontent.com com fundo mapeado) ===
+    const LOGO_GROUPS = [
+      { 
+        title: 'Ícones (Variações de Ícone)', 
+        gridClass: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6',
+        itemClass: 'aspect-square',
+        items: [ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE%20PREFERENCIAL%20FUNDO%20AZUL%20BRANCO.svg', bg: '#fff' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE%20PREFERENCIAL%20FUNDO%20AZUL%20NUCLE.svg', bg: '#0066FF' },
+ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE%20PREFERENCIAL%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_AZUL%20NUCLEO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_AZUL%20NUCLEO%20FUNDO%20MARINHO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_ESCALA%20CINZA%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_ESCALA%20CINZA_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_MARINHO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/ICONE_MONOCROMATICO%20BRANCO_FUNDO%20PRETO.svg', bg: '#000000' }
+        ] 
+      },
+      { 
+        title: 'Logo Horizontal', 
+        gridClass: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+        itemClass: 'aspect-[2/1]',
+        items: [ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20HORIZONTAL%20FUNDO%20ESCURO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_AZUL%20NUCLEO%20FUNDO%20MARINHO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_ESCALA%20CINZA%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_ESCALA%20CINZA_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_MARINHO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_MONOCOMATICO%20PRETO_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20HORIZONTAL_MONOCROMATICO%20BRANCO_FUNDO%20PRETO.svg', bg: '#000000' }
+        ] 
+      },
+      { 
+        title: '📐 Logo Vertical', 
+        gridClass: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5',
+        itemClass: 'aspect-[3/4]',
+        items: [ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_AZUL%20NUCLEO%20FUNDO%20BRANCO-1.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_AZUL%20NUCLEO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_ESCALA%20CINZA%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_ESCALA%20CINZA_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_MARINHO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_MONOCOMATICO%20PRETO_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/LOGO%20VERTICAL_MONOCROMATICO%20BRANCO_FUNDO%20PRETO.svg', bg: '#000000' }
+        ] 
+      },
+      { 
+        title: '⭐ Preferencial (Horizontal e Vertical)', 
+        gridClass: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+        itemClass: 'h-40',
+        items: [ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20HORIZONTAL%20FUNDO%20ESCURO-1.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20HORIZONTAL%20FUNDO%20ESCURO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20AZUL%20NUCLEO.svg', bg: '#0066FF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20BRANCO-1.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20ESCURO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20PRETO-1.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/PREFERENCIAL%20VENTICAL%20FUNDO%20PRETO.svg', bg: '#000000' }
+        ] 
+      },
+      { 
+        title: '✨ Spark', 
+        gridClass: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6',
+        itemClass: 'aspect-square',
+        items: [ 
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/SPARK%20FUNDO%20AZUL%20NUCLEO.svg', bg: '#0066FF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/SPARK%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/SPARK%20FUNDO%20ESCURO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/SPARK%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_AZUL%20NUCLEO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_AZUL%20NUCLEO%20FUNDO%20MARINHO.svg', bg: '#0B1121' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_ESCALA%20CINZA%20FUNDO%20PRETO.svg', bg: '#000000' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_ESCALA%20CINZA_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_MARINHO%20FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_MONOCOMATICO%20PRETO_FUNDO%20BRANCO.svg', bg: '#FFFFFF' },
+          { url: 'https://raw.githubusercontent.com/Design-8DHubify/fortics-design-center/b0acf0e4a3689052170adcc158d530aac27e51e8/LOGO-update/spark_MONOCROMATICO%20BRANCO_FUNDO%20PRETO.svg', bg: '#000000' }
+        ] 
+      }
+    ];
+
+    // === RENDERIZAÇÃO INICIAL ===
+    document.addEventListener('DOMContentLoaded', () => {
+      renderColors();
+      renderLogos();
+      lucide.createIcons();
+    });
+
+    function renderColors() {
+      const container = document.getElementById('colors-grid');
+      let html = '';
+      
+      BRAND_COLORS.forEach(color => {
+        const isPrimary = color.name === 'Núcleo Azul';
+        const textClass = color.textDark ? 'text-slate-900' : 'text-white';
+        const subtextClass = color.textDark ? 'text-slate-800' : 'text-white/80';
+        const borderHTML = isPrimary ? `border-[#0066FF] shadow-xl md:-translate-y-2` : `border-slate-200`;
+
+        html += `
+          <div class="bg-white border rounded-[2rem] overflow-hidden shadow-sm flex flex-col h-full transition-all ${borderHTML}">
+            <div class="h-40 w-full relative p-6 flex flex-col justify-end" style="background-color: ${color.hex}">
+               <div class="relative z-10">
+                  <h3 class="text-2xl font-bold font-sora mb-1 ${textClass}">${color.name}</h3>
+                  <p class="text-[11px] font-medium ${subtextClass} tracking-wide uppercase">${color.meaning}</p>
+               </div>
+            </div>
+
+            <div class="p-6 flex flex-col gap-6">
+              <div class="grid grid-cols-1 gap-3">
+                 <button onclick="copyToClipboard('${color.hex}', 'HEX')" class="flex justify-between items-center group p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-[#0066FF] hover:bg-blue-50 transition-colors w-full text-left">
+                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-[#0066FF]">HEX</span>
+                   <span class="text-sm font-bold text-slate-800 font-mono group-hover:text-[#0066FF] flex items-center gap-2">${color.hex} <i data-lucide="copy" class="w-3 h-3 opacity-0 group-hover:opacity-100"></i></span>
+                 </button>
+
+                 <button onclick="copyToClipboard('${color.pantone}', 'Pantone')" class="flex justify-between items-center group p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-[#0066FF] hover:bg-blue-50 transition-colors w-full text-left">
+                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-[#0066FF]">Pantone</span>
+                   <span class="text-sm font-bold text-slate-800 font-mono group-hover:text-[#0066FF] flex items-center gap-2">${color.pantone} <i data-lucide="copy" class="w-3 h-3 opacity-0 group-hover:opacity-100"></i></span>
+                 </button>
+
+                 <button onclick="copyToClipboard('${color.cmyk}', 'CMYK')" class="flex justify-between items-center group p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-[#0066FF] hover:bg-blue-50 transition-colors w-full text-left">
+                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-[#0066FF]">CMYK</span>
+                   <span class="text-xs font-bold text-slate-800 font-mono group-hover:text-[#0066FF] flex items-center gap-2">${color.cmyk} <i data-lucide="copy" class="w-3 h-3 opacity-0 group-hover:opacity-100"></i></span>
+                 </button>
+              </div>
+              
+              <div>
+                <span class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Escala Tonal</span>
+                <div class="flex h-10 rounded-xl overflow-hidden border border-slate-200">
+                  ${color.shades.map(shade => `
+                    <button onclick="copyToClipboard('${shade}', 'Tom ${shade}')" class="flex-1 relative group/shade transition-opacity hover:opacity-75" style="background-color: ${shade}" title="Copiar ${shade}">
+                      <span class="absolute inset-0 flex items-center justify-center opacity-0 group-hover/shade:opacity-100 bg-black/20 backdrop-blur-[1px]">
+                        <i data-lucide="copy" class="w-3 h-3 text-white"></i>
+                      </span>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+
+      // Render Neutrals
+      const nContainer = document.getElementById('neutrals-container');
+      let nHtml = '';
+      NEUTRALS.forEach(neutral => {
+        const isLight = neutral.hex === '#FFFFFF' || neutral.hex === '#F1F5F9';
+        nHtml += `
+          <div class="flex items-center gap-4 py-4 group/neut">
+            <button onclick="copyToClipboard('${neutral.hex}', 'HEX ${neutral.name}')" class="w-14 h-14 rounded-xl border border-slate-200 flex items-center justify-center shrink-0 transition-transform hover:scale-105 shadow-sm" style="background-color: ${neutral.hex}">
+               <i data-lucide="copy" class="w-5 h-5 opacity-0 group-hover/neut:opacity-100 ${isLight ? 'text-slate-400' : 'text-white/60'}"></i>
+            </button>
+            <div class="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-6 items-center">
+               <div class="col-span-2">
+                 <span class="block text-base font-bold text-slate-800">${neutral.name}</span>
+                 <span class="text-[11px] text-slate-500">${neutral.desc}</span>
+               </div>
+               <button onclick="copyToClipboard('${neutral.cmyk}', 'CMYK ${neutral.name}')" class="text-left group cursor-pointer hidden sm:block">
+                 <span class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-[#0066FF] transition-colors">CMYK</span>
+                 <span class="font-mono text-sm text-slate-600 group-hover:text-[#0066FF] transition-colors">${neutral.cmyk}</span>
+               </button>
+               <button onclick="copyToClipboard('${neutral.hex}', 'HEX ${neutral.name}')" class="text-left sm:text-right group cursor-pointer">
+                 <span class="block text-[9px] font-bold text-slate-400 uppercase tracking-widest sm:hidden group-hover:text-[#0066FF] transition-colors">HEX</span>
+                 <span class="font-mono text-base font-bold text-slate-800 group-hover:text-[#0066FF] transition-colors">${neutral.hex}</span>
+               </button>
+            </div>
+          </div>
+        `;
+      });
+      nContainer.innerHTML = nHtml;
+    }
+
+    function renderLogos() {
+      const container = document.getElementById('logos-container');
+      let html = '';
+
+      LOGO_GROUPS.forEach(group => {
+        html += `
+          <div class="flex flex-col gap-4">
+            <h3 class="text-slate-900 font-bold text-2xl flex items-center gap-3 font-space">
+              <div class="w-3 h-8 bg-[#0066FF] rounded-full"></div>
+              ${group.title}
+            </h3>
+            <div class="grid ${group.gridClass} gap-4 md:gap-6 bg-[#222222] p-6 md:p-8 rounded-[2.5rem] border border-slate-200 shadow-xl">
+        `;
+        
+        group.items.forEach(item => {
+          const borderStyle = item.bg === '#FFFFFF' ? 'border: 1px solid rgba(0,0,0,0.1)' : 'border: 1px solid rgba(255,255,255,0.05)';
+
+          html += `
+            <button onclick="openModal('${item.url}', '${item.bg}')" class="${group.itemClass} flex items-center justify-center p-6 rounded-2xl relative group transition-transform hover:scale-[1.02] shadow-lg overflow-hidden" style="background-color: ${item.bg}; ${borderStyle}">
+              <img src="${item.url}" alt="Logo Variante" class="max-w-full max-h-full object-contain" />
+              <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-[2px] gap-2">
+                <i data-lucide="download" class="text-white w-6 h-6"></i>
+              </div>
+            </button>`;
+        });
+        html += `</div></div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    // === LÓGICA DE UI (SCROLL NAV & COPY) ===
+    document.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('section');
+      const navLinks = document.querySelectorAll('.nav-link');
+      
+      let current = 'brand';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        if (window.scrollY >= sectionTop - 150) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      navLinks.forEach(link => {
+        link.className = "nav-link px-4 sm:px-6 py-2 rounded-full text-xs font-bold transition-all text-slate-500 hover:text-slate-900";
+        if (link.getAttribute('href') === `#${current}`) {
+          link.className = "nav-link px-4 sm:px-6 py-2 rounded-full text-xs font-bold transition-all bg-white text-[#0066FF] shadow-sm";
+        }
+      });
+    });
+
+    function copyToClipboard(text, label = '') {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      
+      showToast(`${label ? label + ' copiado' : 'Copiado'}!`);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('copy-toast');
+      document.getElementById('toast-text').innerText = msg;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translate(-50%, 0) translateY(0)';
+      
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translate(-50%, 0) translateY(10px)';
+      }, 2000);
+    }
+
+    // === LÓGICA DE EXPORTAÇÃO E MODAL ===
+    let currentDownload = { url: '', name: '', format: 'png', width: 2048 };
+
+    function openModal(fullUrl, bg) {
+      currentDownload.url = fullUrl;
+      const urlParts = fullUrl.split('/');
+      const rawFileName = urlParts[urlParts.length - 1];
+      currentDownload.name = decodeURIComponent(rawFileName).replace('.svg', '');
+      
+      document.getElementById('modal-preview-img').src = currentDownload.url;
+      document.getElementById('modal-preview-container').style.backgroundColor = bg;
+      
+      const modal = document.getElementById('download-modal');
+      const content = document.getElementById('modal-content');
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      
+      setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        content.classList.remove('scale-95');
+      }, 10);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('download-modal');
+      const content = document.getElementById('modal-content');
+      
+      modal.classList.add('opacity-0');
+      content.classList.add('scale-95');
+      
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }, 200);
+    }
+
+    function updateResLabel(val) {
+      currentDownload.width = parseInt(val);
+      document.getElementById('res-label').innerText = `Largura: ${val}px`;
+    }
+
+    async function executeDownload(fmt) {
+      currentDownload.format = fmt;
+      const btn = document.getElementById(fmt === 'png' ? 'btn-download-png' : 'btn-fmt-svg');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span class="animate-pulse">A Processar...</span>';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(currentDownload.url);
+        if (!response.ok) throw new Error('Falha no fetch');
+        const svgText = await response.text();
+
+        if (fmt === 'svg') {
+          const blob = new Blob([svgText], { type: 'image/svg+xml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `fortics-${currentDownload.name}.svg`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('Download SVG concluído!');
+          closeModal();
+        } else {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(svgText, 'image/svg+xml');
+          const svgEl = doc.documentElement;
+          
+          let origW = 800; let origH = 400;
+          const viewBox = svgEl.getAttribute('viewBox');
+          if (viewBox) {
+            const parts = viewBox.split(' ');
+            origW = parseFloat(parts[2]);
+            origH = parseFloat(parts[3]);
+          }
+
+          const width = currentDownload.width;
+          const height = (width / origW) * origH;
+
+          const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+          const svgUrl = URL.createObjectURL(svgBlob);
+
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = `fortics-${currentDownload.name}-${width}px.png`;
+            a.click();
+            URL.revokeObjectURL(svgUrl);
+            
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            showToast('Download PNG concluído!');
+            closeModal();
+          };
+          img.onerror = () => {
+             alert('A rasterização falhou. Utilize a exportação SVG.');
+             btn.innerHTML = originalText;
+             btn.disabled = false;
+          };
+          img.src = svgUrl;
+          return; 
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao transferir ficheiro. Certifique-se de que a origem permite a ação.');
+      }
+
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
